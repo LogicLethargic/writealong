@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WriteAlong v2 — Dictation Studio</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171b22; --panel2:#1e242e; --border:#2a323f;
+    --text:#e8ecf1; --muted:#9aa6b8; --accent:#6ea8fe; --accent2:#8ff0c8;
+    --warn:#ffcf6e; --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  [data-theme="light"]{ --bg:#f4f5f7; --panel:#ffffff; --panel2:#eef1f5; --border:#d9e0ea; --text:#111722; --muted:#5b6b82; --accent:#2b5cff; --shadow:0 10px 25px rgba(30,50,90,.12); }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+  header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 18px;background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+  .logo{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),#b48fff);font-weight:900;color:#0b0e13}
+  header h1{font-size:17px;margin:0} header p{margin:0;color:var(--muted);font-size:12.5px}
+  .spacer{flex:1}
+  button{border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:10px;padding:9px 13px;cursor:pointer;font-weight:600;font-size:13.5px}
+  button:hover{border-color:var(--accent)} button.primary{background:var(--accent);border-color:var(--accent);color:#0b0e13}
+  button.icon{padding:9px 11px} button.small{padding:6px 10px;font-size:12.5px}
+  main{display:grid;grid-template-columns:280px 1fr 350px;gap:14px;padding:14px;max-width:1520px;margin:0 auto}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0;padding:13px 14px 8px}
+  #dropzone{margin:0 14px 10px;border:1.5px dashed var(--border);border-radius:12px;padding:18px 14px;text-align:center;color:var(--muted);cursor:pointer}
+  #dropzone:hover,#dropzone.over{border-color:var(--accent);color:var(--text)}
+  #dropOverlay{position:fixed;inset:0;z-index:50;display:none;place-items:center;background:rgba(20,40,90,.55);font-size:22px;font-weight:800}
+  #dropOverlay.show{display:grid}
+  #pageList{list-style:none;margin:0;padding:0 10px 12px;max-height:42vh;overflow:auto}
+  #pageList li{padding:8px 10px;border-radius:10px;display:flex;gap:8px;align-items:center;cursor:pointer;border:1px solid transparent}
+  #pageList li:hover{background:var(--panel2)}
+  #pageList li.active{background:color-mix(in srgb,var(--accent) 16%,transparent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+  #pageList small{color:var(--muted)}
+  #search{width:calc(100% - 28px);margin:0 14px 10px;padding:9px 11px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text)}
+  #pageBar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .pill{background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-size:12.5px;color:var(--muted)}
+  #focusWord{padding:20px 18px 6px;text-align:center}
+  .kicker{color:var(--muted);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+  #bigWord{font-size:clamp(38px,6vw,64px);font-weight:850;margin:4px 0}
+  #context{color:var(--muted);max-width:660px;margin:0 auto;font-size:14.5px}
+  #context b{color:var(--text);background:color-mix(in srgb,var(--warn) 26%,transparent);padding:1px 5px;border-radius:6px}
+  #breakdown{margin:8px auto 0;max-width:660px;font-size:12.5px;color:var(--muted);background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:7px 11px}
+  #breakdown b{color:var(--text)}
+  #gapWrap{padding:12px 18px}
+  #gapBar{height:10px;background:var(--panel2);border:1px solid var(--border);border-radius:999px;overflow:hidden}
+  #gapFill{height:100%;width:0%;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  #gapLabel{display:flex;justify-content:space-between;color:var(--muted);font-size:12.5px;margin-top:6px;gap:8px;flex-wrap:wrap}
+  #gapLabel strong{color:var(--text)}
+  #textView{margin:6px 14px 8px;padding:14px;border-radius:12px;background:var(--panel2);border:1px solid var(--border);max-height:34vh;overflow:auto;font-size:16.5px;line-height:2}
+  #textView.blind span.w{filter:blur(6px);user-select:none}
+  #textView.blind span.w.done,#textView.blind span.w.current{filter:none}
+  span.w{cursor:pointer;padding:2px 3px;border-radius:6px}
+  span.w:hover{background:color-mix(in srgb,var(--accent) 22%,transparent)}
+  span.w.current{background:var(--accent);color:#0b0e13;font-weight:800}
+  span.w.done{color:var(--muted)}
+  #transport{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;padding:12px 14px;border-top:1px solid var(--border);background:var(--panel);flex-wrap:wrap}
+  #seek{flex:1;min-width:130px;accent-color:var(--accent)}
+  label.toggle{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:13px}
+  .row{padding:8px 14px} .row label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:5px}
+  .row label output{color:var(--text);font-weight:700}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  select,input[type=number]{width:100%;padding:9px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 14px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:0 14px}
+  .hint{color:var(--muted);font-size:12.5px;padding:8px 14px}
+  .kbd{background:var(--panel2);border:1px solid var(--border);border-bottom-width:2px;border-radius:6px;padding:0 6px;font-size:12px;font-family:ui-monospace,monospace}
+  #formula{margin:8px 14px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);font-size:12.5px;background:color-mix(in srgb,var(--accent2) 8%,transparent)}
+  canvas#pdfCanvas{width:calc(100% - 28px);margin:6px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;display:none}
+  dialog{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:14px;max-width:440px;padding:20px}
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  #calibWord{font-size:44px;font-weight:850;text-align:center;margin:10px 0}
+  footer{color:var(--muted);font-size:12px;text-align:center;padding:14px}
+  @media(max-width:1100px){main{grid-template-columns:1fr 1.6fr} #studioCol{display:none} #studioCol.open{display:block;position:fixed;right:12px;top:70px;bottom:12px;width:min(370px,93vw);z-index:30;overflow:auto}}
+  @media(max-width:760px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body data-theme="dark">
+<div id="dropOverlay">Drop .txt or .pdf to load 📥</div>
+<header>
+  <div class="logo">W</div>
+  <div><h1>WriteAlong v2 — Dictation Studio</h1><p>Smart pauses: think + write × length-curve + syllables + punctuation, × your pace.</p></div>
+  <div class="spacer"></div>
+  <button id="themeBtn" class="icon">◐</button>
+  <button id="studioBtn" class="icon">🎚</button>
+  <button id="demoBtn">Try demo</button>
+  <button id="pickBtn" class="primary">📂 Open file</button>
+  <input id="fileInput" type="file" accept=".txt,.pdf,text/plain,application/pdf" hidden />
+</header>
+<main>
+  <section class="card">
+    <h2>Source document</h2>
+    <div id="dropzone" tabindex="0">Drag &amp; drop <b>.txt</b> / <b>.pdf</b> here<br/><small>or click to browse — stays on-device</small></div>
+    <input id="search" placeholder="🔍 Find phrase + Enter to jump…" />
+    <h2>Pages — click to skip</h2>
+    <ul id="pageList"><li><small>No document yet. Load a file or try the demo.</small></li></ul>
+    <div class="hint">Classroom trick: loop the hard paragraph — click its first word, press <span class="kbd">L</span> to loop the sentence.</div>
+  </section>
+
+  <section class="card" id="reader">
+    <div id="pageBar">
+      <button id="prevPage" class="icon">←</button>
+      <span class="pill" id="pagePill">Page – / –</span>
+      <button id="nextPage" class="icon">→</button>
+      <span class="pill" id="wordPill">Word – / –</span>
+      <span class="pill" id="pausePill">Next pause: –</span>
+      <div class="spacer"></div>
+      <label class="toggle"><input type="checkbox" id="blindChk" /> 🙈 Blind</label>
+      <label class="toggle"><input type="checkbox" id="pdfChk" checked /> 📄 Scan</label>
+    </div>
+    <div id="focusWord">
+      <div class="kicker" id="statusLine">Ready</div>
+      <div id="bigWord">—</div>
+      <p id="context">Load a .txt or .pdf, then press Play (or <span class="kbd">Space</span>).</p>
+      <div id="breakdown">Pause breakdown will appear here.</div>
+    </div>
+    <div id="gapWrap">
+      <div id="gapBar"><div id="gapFill"></div></div>
+      <div id="gapLabel"><span id="gapState">Idle</span><strong id="gapTime"></strong></div>
+    </div>
+    <canvas id="pdfCanvas"></canvas>
+    <div id="textView"><span style="color:var(--muted)">Document text appears here. Click any word to jump there.</span></div>
+    <div id="transport">
+      <button id="prevSent" title="Prev sentence (←)">⏮</button>
+      <button id="prevWord" title="Prev word">‹</button>
+      <button id="playBtn" class="primary" style="min-width:110px">▶ Play</button>
+      <button id="holdBtn" title="Add +2.5s to current pause (H)">✋ +2.5s</button>
+      <button id="repeatBtn" title="Repeat (R)">🔁</button>
+      <button id="loopBtn" title="Loop sentence (L)">🔂</button>
+      <button id="nextWord" title="Next word">›</button>
+      <button id="nextSent" title="Next sentence (→)">⏭</button>
+      <input id="seek" type="range" min="0" max="0" value="0" />
+    </div>
+    <div class="hint"><span class="kbd">Space</span> play · <span class="kbd">←/→</span> sentence · <span class="kbd">Shift+←/→</span> word · <span class="kbd">R</span> repeat · <span class="kbd">H</span> hold · <span class="kbd">L</span> loop · <span class="kbd">B</span> blind</div>
+  </section>
+
+  <section class="card" id="studioCol"><div id="studio">
+    <h2>🎙 Voice</h2>
+    <div class="row"><label>Voice <output id="voiceOut"></output></label><select id="voiceSel"></select></div>
+    <div class="grid2">
+      <div><label style="font-size:12px;color:var(--muted)">Speech rate</label><input id="rate" type="number" step="0.05" min="0.4" max="1.4" value="0.92" /></div>
+      <div><label style="font-size:12px;color:var(--muted)">Repeats / word</label><input id="repeats" type="number" step="1" min="1" max="4" value="1" /></div>
+    </div>
+    <div class="row"><label class="toggle"><input type="checkbox" id="spellChk" /> 🔤 Spell out hard words (8+ letters)</label></div>
+    <div class="row"><label class="toggle"><input type="checkbox" id="doubleChk" checked /> 🗣 Re-say long words (9+ letters)</label></div>
+
+    <h2>⏳ Pause engine v2 — your pace</h2>
+    <div id="formula">gap = (think + letters × per-letter × curve + extras + punctuation) × pace<br/><small style="color:var(--muted)">curve grows after 6 letters (memory load) · extras = syllables, caps, digits · clamped 1.1–12s</small></div>
+    <div class="grid3" style="margin-top:6px">
+      <button class="small" data-preset="beginner">🐢 Beginner</button>
+      <button class="small" data-preset="classroom">🏫 Classroom</button>
+      <button class="small" data-preset="exam">⚡ Exam</button>
+    </div>
+    <div class="row"><label>✋ My pace modifier (fine-tune) <output id="mulOut">1.00×</output></label><input id="mul" type="range" min="0.3" max="2.5" step="0.05" value="1" /></div>
+    <div class="row"><label>✍ Per-letter write time <output id="splOut">0.55s</output></label><input id="spl" type="range" min="0.15" max="1.2" step="0.01" value="0.55" /></div>
+    <div class="row"><label>🧠 Think overhead <output id="thinkOut">0.60s</output></label><input id="think" type="range" min="0" max="1.5" step="0.05" value="0.60" /></div>
+    <div class="row"><label>🔚 Sentence-end bonus <output id="sentOut">1.60s</output></label><input id="sentBonus" type="range" min="0" max="3" step="0.1" value="1.6" /></div>
+    <div class="grid2"><button id="slower">− Slower</button><button id="faster">+ Faster</button></div>
+    <div class="row"><button id="calibBtn" style="width:100%">📏 Calibrate to my handwriting…</button></div>
+    <div class="hint" id="calibHint">No calibration yet — defaults keep your measured 0.60s/letter as the base.</div>
+    <h2>📄 Document</h2>
+    <div class="row"><div id="fileName" style="font-size:13px">none</div></div>
+    <div class="grid2"><button id="exportBtn">⬇ .txt</button><button id="resetBtn">↺ Reset</button></div>
+  </div></section>
+</main>
+
+<dialog id="calibDlg">
+  <h3 style="margin:0">📏 Handwriting calibration</h3>
+  <p style="color:var(--muted);font-size:13px">You'll hear 5 words, easy → hard. After each one, <b>write it on paper</b>, then press <b>Done — next</b>. I time you and fit your personal per-letter speed.</p>
+  <div id="calibWord">—</div>
+  <div style="display:flex;gap:8px"><button id="calibStart" class="primary" style="flex:1">Start</button><button id="calibDone" disabled style="flex:1">Done — next</button><button id="calibClose">✕</button></div>
+  <p id="calibStatus" style="color:var(--muted);font-size:13px"></p>
+</dialog>
+
+<footer>v2 engine: think + write·curve + syllables + caps/digits + punctuation, × pace · your old <code>0.60s/letter</code> kept as Classroom default · on-device TTS.</footer>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const $ = id => document.getElementById(id);
+const store = { load(){ try{return JSON.parse(localStorage.getItem("writealong2")||"{}")}catch{return{}} }, save(s){localStorage.setItem("writealong2",JSON.stringify(s))} };
+
+/* ================= v2 GAP ENGINE (mirrored in pdf_dictate_auto.py) =================
+   Why not plain letters*0.6?
+   - Handwriting isn't linear: holding a 12-letter word in memory costs MORE per
+     letter than a 3-letter word  -> length curve kicks in after 6 letters.
+   - Recognising/thinking ("what did I hear?") is a fixed cost per word, separate
+     from moving the pen -> think overhead.
+   - Syllables, CAPS, digits, hyphens measurably slow people down.
+   - Punctuation is catch-up time: commas brief, sentence ends long.
+   - A global pace multiplier then adapts everything to YOUR hand. */
+const COMMON = new Set(("the be to of and a in that have i it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us is are was were had has have had").split(" "));
+const cleanW = w => (w||"").replace(/[^A-Za-z0-9]/g,"");
+// Pure-punctuation tokens (",", ".", "—", "___" blanks) must still be HEARD:
+// map them to spoken names so narration never goes silent.
+const PUNCT_NAMES = {".":"period",",":"comma",";":"semicolon",":":"colon","!":"exclamation mark","?":"question mark","…":"ellipsis","—":"em dash","–":"en dash","-":"hyphen","_":"blank","(":"open parenthesis",")":"close parenthesis","[":"open bracket","]":"close bracket","/":"slash","@":"at sign","&":"and sign","*":"asterisk","#":"hash","%":"percent","$":"dollar","+":"plus","=":"equals",'"':"quote"};
+function spokenForm(tok){
+  const c = cleanW(tok); if(c) return c;
+  const chars = [...(tok||"")].filter(ch=>!/\s/.test(ch));
+  if(!chars.length) return "";
+  if(new Set(chars).size===1 && chars.length>2) return chars[0]==="."?"ellipsis":(PUNCT_NAMES[chars[0]]||"");
+  if(chars.every(ch=>ch===".") ) return chars.length>1?"ellipsis":"period";
+  return chars.map(ch=>PUNCT_NAMES[ch]||"").filter(Boolean).join(" ");
+}
+function syllables(word){
+  word = word.toLowerCase().replace(/[^a-z]/g,"");
+  if(!word) return 1; if(word.length<=3) return 1;
+  const m = word.replace(/e$/,"").match(/[aeiouy]+/g);
+  return Math.max(1, Math.min(6, (m||[]).length || 1));
+}
+function gapBreakdown(display, opts, cfg){
+  const clean = cleanW(display); const L = clean.length || 1;
+  const syl = syllables(clean);
+  const curve = 1 + Math.max(0, L - 6) * 0.08;         // memory-load curve
+  const think = cfg.think;
+  let write = L * cfg.spl * curve;
+  if (L > 7 && !COMMON.has(clean.toLowerCase())) write *= 1.15;  // rare spelling tax
+  const sylExtra = Math.max(0, syl - 1) * 0.12;
+  let extra = 0; const tags = [];
+  if (/\d/.test(display)) { extra += 0.5; tags.push("digit+0.5"); }
+  if (clean.length>1 && clean===clean.toUpperCase() && /[A-Z]/.test(clean)) { extra += 0.4; tags.push("CAPS+0.4"); }
+  if (/[-'’]/.test(display) || /[a-z][A-Z]/.test(clean)) { extra += 0.3; tags.push("hyphen/case+0.3"); }
+  let punct = 0;
+  if (/[,;:]$/.test(display)) { punct += 0.8; tags.push("clause+0.8"); }
+  if (/[.?!…]$/.test(display)) { punct += cfg.sentBonus; tags.push(`sentence+${cfg.sentBonus.toFixed(1)}`); }
+  if (opts.firstOfSentence) { punct += 0.4; tags.push("lead+0.4"); }
+  if (opts.lastOfPage) { punct += 0.6; tags.push("page-end+0.6"); }
+  const raw = think + write + sylExtra + extra + punct;
+  const total = Math.min(12, Math.max(1.1, raw * cfg.mul));
+  return { L, syl, curve, think, write, sylExtra, extra, punct, tags, raw, total };
+}
+
+let pages=[], flat=[], pdfDoc=null;
+let cursor=0, playing=false, looping=false, gapTimer=null, gapRAF=null, gapEnd=0, utter=null;
+let cfg = Object.assign({spl:0.55, think:0.60, mul:1.0, sentBonus:1.6, rate:0.92, repeats:1,
+  blind:false, spell:false, doubleSay:true}, store.load());
+const PRESETS = { beginner:{spl:0.70,think:0.90,mul:1.15,sentBonus:2.0}, classroom:{spl:0.55,think:0.60,mul:1.0,sentBonus:1.6}, exam:{spl:0.38,think:0.40,mul:0.85,sentBonus:1.2} };
+
+function optsFor(i){
+  const t = flat[i];
+  const prevEnd = i>0 && /[.?!…]$/.test(flat[i-1].display);
+  const firstOfSentence = i===0 || prevEnd;
+  const lastOfPage = i===flat.length-1 || flat[i+1].page!==t.page;
+  return { firstOfSentence, lastOfPage };
+}
+const gapFor = i => gapBreakdown(flat[i].display, optsFor(i), cfg).total;
+
+function refreshLabels(){
+  $("splOut").textContent=(+cfg.spl).toFixed(2)+"s"; $("thinkOut").textContent=(+cfg.think).toFixed(2)+"s";
+  $("mulOut").textContent=(+cfg.mul).toFixed(2)+"×"; $("sentOut").textContent=(+cfg.sentBonus).toFixed(1)+"s";
+  store.save(cfg);
+}
+["spl","think","mul","sentBonus","rate","repeats"].forEach(k=>{ if($(k)&&cfg[k]!==undefined) $(k).value=cfg[k]; });
+$("blindChk").checked=!!cfg.blind; $("spellChk").checked=!!cfg.spell; $("doubleChk").checked=!!cfg.doubleSay;
+refreshLabels();
+if(cfg.calibrated) $("calibHint").textContent = `Calibrated ${cfg.calibrated.when}: per-letter ${cfg.spl.toFixed(2)}s, think ${cfg.think.toFixed(2)}s.`;
+
+/* ---------- document loading ---------- */
+function setPages(texts, name){
+  pages = texts.map(t=>({text:t, words:t.split(/\s+/).filter(Boolean)}));
+  flat=[]; pages.forEach((p,pi)=>p.words.forEach((w,wi)=>flat.push({display:w,page:pi})));
+  cursor=0; stopPlayback(true);
+  $("fileName").textContent = `${name} — ${flat.length} words, ${pages.length} page(s)`;
+  $("seek").max=Math.max(0,flat.length-1); renderPageList(); renderAll();
+}
+async function loadFile(file){
+  if(!file) return;
+  const ext=file.name.split(".").pop().toLowerCase();
+  if(ext==="txt"||file.type.startsWith("text")){
+    const text=await file.text();
+    let chunks=text.split(/\f/).map(s=>s.trim()).filter(Boolean);
+    if(chunks.length<=1){ const w=text.split(/\s+/); chunks=[]; for(let i=0;i<w.length;i+=220) chunks.push(w.slice(i,i+220).join(" ")); }
+    pdfDoc=null; setPages(chunks,file.name);
+  } else if(ext==="pdf"||file.type==="application/pdf"){
+    const buf=await file.arrayBuffer();
+    pdfDoc=await pdfjsLib.getDocument({data:buf}).promise;
+    const texts=[];
+    for(let i=1;i<=pdfDoc.numPages;i++){ const pg=await pdfDoc.getPage(i); const tc=await pg.getTextContent(); texts.push(tc.items.map(it=>it.str).join(" ")); }
+    setPages(texts,file.name);
+  } else alert("Drop a .txt or .pdf file.");
+}
+$("pickBtn").onclick=()=>$("fileInput").click(); $("dropzone").onclick=()=>$("fileInput").click();
+$("fileInput").onchange=e=>loadFile(e.target.files[0]);
+["dragover","dragenter"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();$("dropOverlay").classList.add("show");$("dropzone").classList.add("over");}));
+["dragleave","drop"].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();$("dropOverlay").classList.remove("show");$("dropzone").classList.remove("over");}));
+document.addEventListener("drop",e=>{const f=e.dataTransfer.files[0]; if(f) loadFile(f);});
+$("demoBtn").onclick=()=>setPages([
+  "Dictation demo. Press Play. Short words like cat pass quickly, but a monster like extraordinary automatically earns more time — plus extra at commas, and full stops.",
+  "Tune everything with My pace. Hit Hold when your pen lags. Toggle spell mode and hard words get spelled aloud, letter by letter."],"demo.txt");
+$("exportBtn").onclick=()=>{const b=new Blob([pages.map(p=>p.text).join("\n\n")],{type:"text/plain"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="document.txt";a.click();};
+$("resetBtn").onclick=()=>{stopPlayback(true);cursor=0;renderAll();};
+document.querySelectorAll("[data-preset]").forEach(b=>b.onclick=()=>{Object.assign(cfg,PRESETS[b.dataset.preset]);["spl","think","mul","sentBonus"].forEach(k=>$(k).value=cfg[k]);refreshLabels();renderAll();});
+
+/* ---------- render ---------- */
+function renderPageList(){
+  const ul=$("pageList"); ul.innerHTML="";
+  pages.forEach((p,i)=>{ const li=document.createElement("li"); if(i===(flat[cursor]?.page??0)) li.classList.add("active");
+    li.innerHTML=`<b>P${i+1}</b> <small>${p.words.slice(0,7).join(" ")}… (${p.words.length}w)</small>`; li.onclick=()=>jumpToPage(i); ul.appendChild(li); });
+}
+function sentenceBounds(i){ let s=i,e=i; while(s>0&&!/[.!?…:]$/.test(flat[s-1].display)) s--; while(e<flat.length-1&&!/[.!?…:]$/.test(flat[e].display)) e++; return [s,e]; }
+async function renderAll(){
+  if(!flat.length) return;
+  const cur=flat[cursor], b=gapBreakdown(cur.display,optsFor(cursor),cfg);
+  $("seek").value=cursor;
+  $("pagePill").textContent=`Page ${cur.page+1} / ${pages.length}`;
+  $("wordPill").textContent=`Word ${cursor+1} / ${flat.length}`;
+  $("pausePill").textContent=`Next pause: ${b.total.toFixed(2)}s`;
+  $("bigWord").textContent=cur.display;
+  $("statusLine").textContent=playing?"● Dictating…":"❚❚ Paused";
+  const [s,e]=sentenceBounds(cursor);
+  $("context").innerHTML="…"+flat.slice(s,e+1).map((w,k)=>s+k===cursor?`<b>${w.display}</b>`:w.display).join(" ")+"…";
+  $("breakdown").innerHTML=`<b>${b.total.toFixed(2)}s</b> = think ${b.think.toFixed(2)} + write ${b.write.toFixed(2)} (${b.L}×${cfg.spl.toFixed(2)}×curve${b.curve.toFixed(2)}) + syl ${b.sylExtra.toFixed(2)} + extra ${b.extra.toFixed(2)} + punct ${b.punct.toFixed(2)}${b.tags.length?" <small>["+b.tags.join(", ")+"]</small>":""} → ×${cfg.mul.toFixed(2)} pace`;
+  const tv=$("textView"); tv.classList.toggle("blind",cfg.blind); tv.innerHTML="";
+  const start=flat.findIndex(w=>w.page===cur.page);
+  pages[cur.page].words.forEach((w,wi)=>{ const g=start+wi; const sp=document.createElement("span");
+    sp.className="w"+(g===cursor?" current":g<cursor?" done":""); sp.textContent=w; sp.onclick=()=>jumpTo(g);
+    tv.appendChild(sp); tv.appendChild(document.createTextNode(" ")); });
+  tv.querySelector(".current")?.scrollIntoView({block:"center",behavior:"smooth"});
+  renderPageList();
+  if(pdfDoc&&$("pdfChk").checked){ try{ const pg=await pdfDoc.getPage(cur.page+1); const vp=pg.getViewport({scale:1.4});
+    const cv=$("pdfCanvas"); cv.style.display="block"; cv.width=vp.width; cv.height=vp.height;
+    await pg.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise; }catch{ $("pdfCanvas").style.display="none"; } }
+  else $("pdfCanvas").style.display="none";
+  if(!playing) $("gapState").textContent=`Ready — “${cur.display}” needs ~${b.total.toFixed(1)}s`;
+}
+function jumpTo(i){ cursor=Math.max(0,Math.min(flat.length-1,i)); const w=playing; stopPlayback(true); renderAll(); if(w) play(); }
+function jumpToPage(p){ const i=flat.findIndex(w=>w.page===p); if(i>=0) jumpTo(i); }
+$("seek").oninput=e=>jumpTo(+e.target.value);
+$("prevPage").onclick=()=>jumpToPage(Math.max(0,(flat[cursor]?.page??0)-1));
+$("nextPage").onclick=()=>jumpToPage(Math.min(pages.length-1,(flat[cursor]?.page??0)+1));
+$("search").onkeydown=e=>{ if(e.key!=="Enter"||!flat.length) return; const q=e.target.value.toLowerCase(); if(!q) return;
+  const i=flat.findIndex((w,k)=>k>cursor&&w.display.toLowerCase().includes(q));
+  const hit=i>=0?i:flat.findIndex(w=>w.display.toLowerCase().includes(q)); hit>=0?jumpTo(hit):alert("No match."); };
+
+/* ---------- TTS engine ---------- */
+const voices=()=>speechSynthesis.getVoices();
+function fillVoices(){ const sel=$("voiceSel"); sel.innerHTML=""; voices().forEach((v,i)=>{const o=document.createElement("option");o.value=i;o.textContent=`${v.name} (${v.lang})`;if(v.default)o.selected=true;sel.appendChild(o);}); $("voiceOut").textContent=voices().length+" available"; }
+speechSynthesis.onvoiceschanged=fillVoices; fillVoices();
+function say(text,rate){ return new Promise(res=>{ const u=new SpeechSynthesisUtterance(text);
+  const vs=voices(); if(vs[+$("voiceSel").value]) u.voice=vs[+$("voiceSel").value]; u.rate=rate||parseFloat($("rate").value||0.92);
+  u.onend=u.onerror=()=>res(); speechSynthesis.speak(u); }); }
+function stopPlayback(silent){ playing=false; clearTimeout(gapTimer); cancelAnimationFrame(gapRAF);
+  try{speechSynthesis.cancel();}catch{} $("playBtn").textContent="▶ Play"; $("gapFill").style.width="0%";
+  if(!silent){$("gapState").textContent="Paused"; renderAll();} }
+function animateGap(){ cancelAnimationFrame(gapRAF); const tick=()=>{ const left=Math.max(0,gapEnd-performance.now());
+    const total=gapFor(cursor)||3000; $("gapFill").style.width=(100*(1-left/total))+"%";
+    $("gapTime").textContent=(left/1000).toFixed(1)+"s left — write now ✍";
+    if(left>0&&playing) gapRAF=requestAnimationFrame(tick); }; tick(); }
+async function play(){ if(!flat.length){alert("Load a .txt or .pdf first (or Try demo).");return;}
+  if(cursor>=flat.length-1) cursor=0; playing=true; $("playBtn").textContent="❚❚ Pause"; renderAll(); speakCursor(); }
+async function speakCursor(){
+  if(!playing) return;
+  if(cursor>=flat.length){ stopPlayback(); $("gapState").textContent="✅ Done!"; return; }
+  if(looping){ const [s,e]=sentenceBounds(cursor); if(cursor>e){ cursor=s; } }
+  renderAll();
+  const tok=flat[cursor], spoken=spokenForm(tok.display), L=spoken.length||1;
+  if(!spoken){ $("gapState").textContent=`⋯ “${tok.display}” (symbol — brief pause)`;
+    gapEnd=performance.now()+Math.max(1100,800*cfg.mul); animateGap();
+    gapTimer=setTimeout(()=>{cursor++;speakCursor();},Math.max(1100,800*cfg.mul)); return; }
+  $("gapState").textContent=`🔊 “${tok.display}”…`; $("gapTime").textContent="";
+  await new Promise(r=>setTimeout(r,180)); if(!playing) return;       // lead-in beat
+  const reps=Math.max(1,parseInt($("repeats").value||1));
+  const times=Math.max(reps,(cfg.doubleSay&&cleanW(tok.display).length>=9)?2:1);
+  for(let i=0;i<times;i++){ if(!playing) return; await say(spoken); if(times>1) await new Promise(r=>setTimeout(r,250)); }
+  if(!playing) return;
+  if(cfg.spell&&cleanW(tok.display).length>=8){ $("gapState").textContent=`🔤 Spelling “${tok.display}”…`;
+    await say(spoken.split("").join(" "), Math.min(0.8,parseFloat($("rate").value||0.92))); if(!playing) return; }
+  const gap=gapFor(cursor);
+  $("gapState").textContent=`✍ Write “${tok.display}” — ${gap.toFixed(2)}s`;
+  gapEnd=performance.now()+gap*1000; animateGap();
+  gapTimer=setTimeout(()=>{ if(looping){ const [,e]=sentenceBounds(cursor); cursor=cursor>=e?sentenceBounds(cursor)[0]:cursor+1; }
+    else cursor++; speakCursor(); }, gap*1000);
+}
+$("playBtn").onclick=()=>playing?stopPlayback():play();
+$("holdBtn").onclick=()=>{ if(!playing) return; gapEnd+=2500; clearTimeout(gapTimer);
+  gapTimer=setTimeout(()=>{cursor++;speakCursor();},Math.max(200,gapEnd-performance.now())); $("gapState").textContent+=" (+2.5s held ✋)"; };
+$("repeatBtn").onclick=()=>{ const w=playing; stopPlayback(true); renderAll(); if(w) play(); else say(spokenForm(flat[cursor]?.display||"")||"blank"); };
+$("loopBtn").onclick=e=>{ looping=!looping; e.target.style.borderColor=looping?"var(--accent2)":""; e.target.textContent=looping?"🔂 looping":"🔂"; if(looping&&!playing) play(); };
+$("prevWord").onclick=()=>jumpTo(cursor-1); $("nextWord").onclick=()=>jumpTo(cursor+1);
+$("prevSent").onclick=()=>jumpTo(cursor<=0?0:sentenceBounds(Math.max(0,cursor-1))[0]);
+$("nextSent").onclick=()=>jumpTo(Math.min(flat.length-1,sentenceBounds(cursor)[1]+1));
+
+/* ---------- studio bindings ---------- */
+$("spl").oninput=e=>{cfg.spl=+e.target.value;refreshLabels();renderAll();};
+$("think").oninput=e=>{cfg.think=+e.target.value;refreshLabels();renderAll();};
+$("mul").oninput=e=>{cfg.mul=+e.target.value;refreshLabels();renderAll();};
+$("sentBonus").oninput=e=>{cfg.sentBonus=+e.target.value;refreshLabels();renderAll();};
+$("rate").onchange=e=>{cfg.rate=+e.target.value;refreshLabels();};
+$("repeats").onchange=e=>{cfg.repeats=+e.target.value;refreshLabels();};
+$("spellChk").onchange=e=>{cfg.spell=e.target.checked;refreshLabels();};
+$("doubleChk").onchange=e=>{cfg.doubleSay=e.target.checked;refreshLabels();};
+$("slower").onclick=()=>{cfg.mul=Math.min(2.5,+(cfg.mul+0.1).toFixed(2));$("mul").value=cfg.mul;refreshLabels();renderAll();};
+$("faster").onclick=()=>{cfg.mul=Math.max(0.3,+(cfg.mul-0.1).toFixed(2));$("mul").value=cfg.mul;refreshLabels();renderAll();};
+$("blindChk").onchange=e=>{cfg.blind=e.target.checked;refreshLabels();renderAll();};
+$("pdfChk").onchange=()=>renderAll();
+$("themeBtn").onclick=()=>{const b=document.body;b.dataset.theme=b.dataset.theme==="dark"?"light":"dark";};
+$("studioBtn").onclick=()=>$("studioCol").classList.toggle("open");
+document.addEventListener("keydown",e=>{ if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if(e.code==="Space"){e.preventDefault();playing?stopPlayback():play();}
+  else if(e.key==="ArrowRight"&&e.shiftKey) jumpTo(cursor+1); else if(e.key==="ArrowLeft"&&e.shiftKey) jumpTo(cursor-1);
+  else if(e.key==="ArrowRight") $("nextSent").click(); else if(e.key==="ArrowLeft") $("prevSent").click();
+  else if(e.key==="r"||e.key==="R") $("repeatBtn").click();
+  else if(e.key==="h"||e.key==="H") $("holdBtn").click();
+  else if(e.key==="l"||e.key==="L") $("loopBtn").click();
+  else if(e.key==="b"||e.key==="B"){cfg.blind=!cfg.blind;$("blindChk").checked=cfg.blind;renderAll();} });
+
+/* ---------- calibration: fit YOUR spl + think ---------- */
+const CALIB=[["cat",3],["water",5],["school",6],["beautiful",9],["extraordinary",13]];
+let calIdx=0, calSamples=[], calT0=0;
+$("calibBtn").onclick=()=>{ $("calibDlg").showModal(); $("calibStatus").textContent=""; $("calibWord").textContent="—"; calIdx=0; calSamples=[]; $("calibDone").disabled=true; };
+$("calibClose").onclick=()=>{ try{speechSynthesis.cancel();}catch{} $("calibDlg").close(); };
+$("calibStart").onclick=async()=>{ calIdx=0; calSamples=[]; $("calibStart").disabled=true; await calibStep(); };
+$("calibDone").onclick=async()=>{ const dt=(performance.now()-calT0)/1000; calSamples.push([CALIB[calIdx][1],dt]);
+  $("calibStatus").textContent+=`“${CALIB[calIdx][0]}” → ${dt.toFixed(1)}s. `; calIdx++;
+  $("calibDone").disabled=true; await calibStep(); };
+async function calibStep(){
+  if(calIdx>=CALIB.length){ // least-squares fit t = think + spl*L
+    const n=calSamples.length, sx=calSamples.reduce((a,s)=>a+s[0],0), sy=calSamples.reduce((a,s)=>a+s[1],0);
+    const mx=sx/n, my=sy/n; let num=0,den=0; calSamples.forEach(([x,y])=>{num+=(x-mx)*(y-my);den+=(x-mx)*(x-mx);});
+    let spl=den>0?num/den:0.55, think=my-spl*mx;
+    spl=Math.min(1.2,Math.max(0.15,spl)); think=Math.min(1.5,Math.max(0,think));
+    cfg.spl=+spl.toFixed(2); cfg.think=+think.toFixed(2); cfg.mul=1.0;
+    cfg.calibrated={when:new Date().toLocaleString(),spl:cfg.spl,think:cfg.think};
+    ["spl","think","mul"].forEach(k=>$(k).value=cfg[k]); refreshLabels(); renderAll();
+    $("calibHint").textContent=`Calibrated ${cfg.calibrated.when}: per-letter ${cfg.spl.toFixed(2)}s, think ${cfg.think.toFixed(2)}s — from YOUR hand.`;
+    $("calibWord").textContent="✅"; $("calibStatus").textContent+=`Done — your pace: ${spl.toFixed(2)}s/letter + ${think.toFixed(2)}s think. Applied!`;
+    $("calibStart").disabled=false; return; }
+  const [w]=CALIB[calIdx]; $("calibWord").textContent=w; $("calibDone").disabled=true;
+  await say(w); calT0=performance.now();
+  $("calibStatus").textContent+=`Wrote “${w}”? press Done — next. `; $("calibDone").disabled=false;
+}
+</script>
+</body>
+</html>

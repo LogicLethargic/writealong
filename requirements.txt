@@ -1,0 +1,9 @@
+# Required
+piper-tts>=1.2.0
+pygame>=2.5.0
+pypdf>=4.0.0
+
+# Optional — each is detected at runtime and degrades gracefully
+pymupdf>=1.24.0      # faster + better PDF text extraction, page images
+pillow>=10.0.0       # image scaling for rendered pages
+tkinterdnd2>=0.3.0   # drag and drop

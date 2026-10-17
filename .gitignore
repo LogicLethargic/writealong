@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+
+# Piper voice weights — download separately, ~63 MB
+*.onnx
+*.onnx.json
+
+writealong_p*.png
